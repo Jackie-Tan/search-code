@@ -1,7 +1,7 @@
 from git import Repo, exc
 import logging
 import os
-import shutil
+# import shutil
 import json
 
 logging.basicConfig(level=logging.INFO)
@@ -14,16 +14,48 @@ def search_string(file, string_to_search):
             count += 1
     return count
 
+def get_org_library_names(repo_remote_path: str) -> tuple[str, str]:
+    split_path = repo_remote_path.split('/')
+    org_name = split_path[-2]
+    library_name = split_path[-1].replace('.git','')
+    return (org_name, library_name)
+
+def get_library_name(repo_remote_path: str) -> str:
+    return repo_remote_path.split('/')[-1].replace('.git','')
+
+def parse_json():
+    pass
+
 def main():
     result: dict = {}
-    cwd: str = os.getcwd()
-    repo_path: str = os.path.join(cwd, 'test')
-    # repo_remote_path = 'https://github.com/codemirror/codemirror5.git' # we need
-    repo_remote_path = 'https://github.com/yairEO/tagify.git'
-    # relative_filepath = 'mode/javascript/javascript.js' # we need
-    relative_filepath = 'src/tagify.js' 
-    # string_to_search = 'if (word == "async" && stream.match(/^(\s|\/\*.*?\*\/)*[\[\(\w]/, false))' # we need
-    string_to_search = """_s.placeholder = input.getAttribute('placeholder') || _s.placeholder || """""
+    
+    # repo_remote_path = 'https://github.com/codemirror/codemirror5.git' # input
+    # repo_remote_path = 'https://github.com/yairEO/tagify.git'
+    # repo_remote_path = 'https://github.com/Cacti/cacti.git'
+    # repo_remote_path = 'https://github.com/josdejong/jsoneditor.git'
+    # repo_remote_path = 'https://github.com/nolimits4web/swiper.git'
+    repo_remote_path = 'https://github.com/NodeRedis/node-redis.git'
+
+    org_name, library_name = get_org_library_names(repo_remote_path)
+    repo_name: str = f'{org_name}_{library_name}'
+    repo_path: str = os.path.join(os.getcwd(), repo_name)
+
+    # relative_filepath = 'mode/javascript/javascript.js' # input
+    # relative_filepath = 'src/tagify.js'
+    # relative_filepath = 'include/themes/midwinter/main.js'
+    # relative_filepath = ''
+    relative_filepath = 'src/utils/utils.js'
+    relative_filepath = 'lib/utils.js'
+
+    # string_to_search = 'if (word == "async" && stream.match(/^(\s|\/\*.*?\*\/)*[\[\(\w]/, false))' # input
+    # string_to_search = """_s.placeholder = input.getAttribute('placeholder') || _s.placeholder || """""
+    # string_to_search = """$('.import_text').html(fileText);"""
+    # string_to_search = """"""
+    string_to_search = r"""const keysArray = Object.keys(Object(nextSource));"""
+    string_to_search = r"""monitor_regex: /^[0-9]{10,11}\.[0-9]+ \[[0-9]+ .+\]( ".+?")+$/,"""
+
+    
+
     target_file = os.path.join(repo_path, relative_filepath)
 
     if not os.path.exists(repo_path) or not os.listdir(repo_path):
@@ -39,7 +71,9 @@ def main():
             with open(target_file, 'r') as file:
                 result[tag_ref.name] = search_string(file, string_to_search)
     
-    shutil.rmtree(repo_path)
+    # May not need to delete the repo dir after all
+    # shutil.rmtree(repo_path)
+
     counter = 0
     for key, value in result.items():
         if value > 0:
@@ -47,15 +81,8 @@ def main():
             print(f"{key}: {value}")
 
     print(f"{counter}")
-    with open('tagify.json', 'w') as file:
+    with open(f'{repo_name}.json', 'w') as file:
         json.dump(result, file)
-    # tags_with_timestamps = {}
-    # for tag_ref in repo.tags:
-    #     commit = tag_ref.commit
-    #     tags_with_timestamps[tag_ref.name] = commit.authored_datetime
-
-    # for tag, timestamp in tags_with_timestamps.items():
-    #     print(f"Tag: {tag}, Timestamp: {timestamp}")
 
 if __name__ == '__main__':
     main()
