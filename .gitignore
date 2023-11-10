@@ -1,1 +1,4 @@
 .venv
+*/
+*.json
+!final_cleaned.json
