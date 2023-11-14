@@ -1,4 +1,3 @@
 .venv
-*/
-*.json
-!final_cleaned.json
+.result
+.scantist-ossops
