@@ -1,3 +1,3 @@
-.venv
-.result
-.scantist-ossops
+/venv/*
+/result/*
+/scantist-ossops/*

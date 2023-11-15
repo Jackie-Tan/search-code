@@ -1,10 +1,12 @@
 from git import Repo, exc
 import logging
 import os
-# import shutil
+import shutil
 import json
 import ast
 import fork
+import time
+import warnings
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,13 +19,19 @@ def search_string(file, string_to_search):
     return count
 
 def search_and_patch(file, string_to_search, string_to_patch):
+    patched = False
     patched_lines = []
     for line in file:
         if string_to_search in line:
+            # print(f"FILE: {file}")
+            # print(f"SEARCH STRING:{string_to_search}")
+            # print(f"PATCH STRING: {string_to_patch}")
+            # print(f"LINE FOUND: {line}")
             patched_lines.append(line.replace(string_to_search, string_to_patch))
+            patched = True
         else:
             patched_lines.append(line)
-    return patched_lines
+    return (patched, patched_lines)
 
 
 def get_org_library_names(repo_remote_path: str) -> tuple[str, str]:
@@ -63,32 +71,67 @@ def parse_json_with_patch(json_path: str) -> tuple[str, str, str]:
             string_to_search_dict = ast.literal_eval(string_to_search_str)
             try:
                 string_to_search = string_to_search_dict[relative_filepath]['-'][0]
-            except:
-                string_to_search = '=============+++++++++++++++==============----------------'
-            try:
                 string_to_patch = string_to_search_dict[relative_filepath]['+'][0]
             except:
+                string_to_search = '=============+++++++++++++++==============----------------'
                 string_to_patch = '=============+++++++++++++++==============----------------'
+
             yield (repo_remote_path, relative_filepath, string_to_search, string_to_patch)
 
-def push_rename_tag(repo, tag_ref, file_to_add):
+def retry_operation(operation, max_retries=3, delay=3):
+    retries=0
+    while retries < max_retries:
+        try:
+            time.sleep(delay)
+            operation()
+            return
+        except Exception as e:
+            logging.error(f"Error: {e}")
+            retries+=1
+            logging.info(f"Retrying ({retries}/{max_retries}) after a short delay...")
+            time.sleep(delay)
+        except warnings.Warning as w:
+            logging.warning(f"Warning: {w}")
+            retries+=1
+            logging.info(f"Retrying ({retries}/{max_retries}) after a short delay...")
+            time.sleep(delay)
+
+def push_rename_tag(repo, tag_ref, file_to_add, temp_branch_name):
     new_tag_name = tag_ref.name + '-secure'
     commit_message = "Patch vulnerability in older version"
     try:
+        repo.create_head(temp_branch_name)
+        repo.heads[temp_branch_name].checkout()
+        print("TEMP BRANCH CREATED")
         # first push all file changes
+        time.sleep(5)
         repo.index.add([file_to_add])
         repo.index.commit(commit_message)
-        repo.remotes.origin.push(tag_ref.name)
+        print(f"Commit created: {repo.head.commit}")
+        retry_operation(lambda: repo.remotes.origin.push(temp_branch_name, kill_after_timeout=3.0))
+        print(f"Pushed changes to {temp_branch_name}")
+        temp_branch_commit = repo.commit(temp_branch_name)
+        time.sleep(1)
         # create a new local tag from old tag, delete local tag and push new to
         # remote, delete old tag on origin
-        repo.create_tag(new_tag_name, ref=tag_ref.commit)
-        print(f"delete {tag_ref.name}")
-        repo.delete(tag_ref.name)
-        print(f"new tag {new_tag_name}")
-        repo.remotes.origin.push(new_tag_name)
+        repo.create_tag(new_tag_name, ref=temp_branch_commit)
+        print(f"New tag created: {new_tag_name}")
+        #print(f"delete {tag_ref.name}")
+        #repo.delete_tag(tag_ref.name)
+        #print(f"new tag {new_tag_name}")
+        retry_operation(lambda: repo.remotes.origin.push(temp_branch_name, kill_after_timeout=3.0))
+        print(f"Pushed new tag to {new_tag_name}")
+        time.sleep(1)
     except Exception as e:
         print(f"Error: {e}")
-    input("CHECK THE TAGS AND EVERYTHING IN GITHUB FIRST")
+
+def check_tag_exists(repo, tag_ref):
+    tag_to_check = tag_ref.name + '-secure'
+    try:
+        repo.git.rev_parse(tag_to_check)
+        return True
+    except Exception as e:
+        return False
 
 def main():
     result: dict = {}
@@ -160,7 +203,13 @@ def main():
 
 
 def patch_main():
+    logging.basicConfig(level=logging.INFO)
     json_filename = 'final_cleaned.json'
+
+
+    # ENTER USERNAME AND PASSWORD
+    username = ""
+    password= ""
 
     if not os.path.exists('./scantist-ossops'):
         os.makedirs('./scantist-ossops')
@@ -178,26 +227,41 @@ def patch_main():
 
         target_file = os.path.join(repo_path, relative_filepath)
 
-        scantist_ossops_remote_path = fork.get_scantist_ossops_remote_path(repo_remote_path)
-
+        scantist_ossops_remote_path = fork.get_scantist_ossops_remote_path(repo_remote_path, username, password)
+        print(scantist_ossops_remote_path)
         if not os.path.exists(repo_path) or not os.listdir(repo_path):
             try:
                 Repo.clone_from(scantist_ossops_remote_path, repo_path) # Need the url to clone
             except exc.GitCommandError as e:
                 print(f"Git command error: {e}")
         repo: Repo = Repo(repo_path)
-
+        repo.remotes.origin.fetch(tags=True)
         for tag_ref in repo.tags:
-            repo.git.checkout(tag_ref.name)
-            if os.path.exists(target_file):
-                with open(target_file, 'r') as file:
-                    patched_lines = search_and_patch(file, string_to_search, string_to_patch)
-                # rewrite the file with patched line(s)
-                with open(target_file, 'w') as file:
-                    file.writelines(patched_lines)
-                
-                # commit the changes, push to scantist repo, rename original tag
-                push_rename_tag(repo, tag_ref, target_file)
+            if check_tag_exists(repo, tag_ref):
+                print(f"TAG: {tag_ref.name} already has a secure tag, skipping") 
+                pass
+            else:
+                repo.git.checkout(tag_ref.name)
+                print(f"CHECKOUT: {tag_ref.name}")
+                if os.path.exists(target_file):
+                    print(f"FILE EXISTS: {target_file}")
+                    with open(target_file, 'r') as file:
+                        patched, patched_lines = search_and_patch(file, string_to_search, string_to_patch)
+                    # commit the changes, push to scantist repo, rename original tag
+                    temp_branch_name = f'{tag_ref.name}-branch-secure'
+                    if patched:
+                        # rewrite the file with patched line(s)
+                        with open(target_file, 'w') as file:
+                            file.writelines(patched_lines)
+                        print("FILE IS WRITTEN")
+                        time.sleep(1)
+                        push_rename_tag(repo, tag_ref, target_file, temp_branch_name)
+                    else:
+                        print("PATCH NOT APPLIED, no new tag")
+                        pass
+        print(f"Delete local file: scantist-ossops/{org_name}_{library_name}")
+        folder_path = f'scantist-ossops/{org_name}_{library_name}'
+        shutil.rmtree(folder_path)
                 
 
 if __name__ == '__main__':

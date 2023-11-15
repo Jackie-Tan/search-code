@@ -6,7 +6,7 @@ import time
 import json
 
 # CHANGE TOKEN ACCORDING TO USER
-TOKEN = "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"
+TOKEN = ""
 
 def fork_repo_to_org(org_name, library_name):
     command = f"""curl -L \
@@ -26,11 +26,12 @@ def fork_repo_to_org(org_name, library_name):
     time.sleep(3)
     return
 
-def get_scantist_ossops_remote_path(repo_remote_path):
+def get_scantist_ossops_remote_path(repo_remote_path, username, password):
     # given: https://github.com/Cacti/cacti.git
     # output: https://github.com/scantist-ossops/cacti.git
     split_path = repo_remote_path.split('/')
     split_path[-2] = "scantist-ossops"
+    split_path[2] = f"{username}:{password}@github.com"
     scantist_ossops_remote_path = '/'.join(split_path)
     return scantist_ossops_remote_path
 
