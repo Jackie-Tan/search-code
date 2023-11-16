@@ -104,14 +104,12 @@ def push_rename_tag(repo, tag_ref, file_to_add, temp_branch_name):
         repo.heads[temp_branch_name].checkout()
         print("TEMP BRANCH CREATED")
         # first push all file changes
-        time.sleep(5)
         repo.index.add([file_to_add])
         repo.index.commit(commit_message)
         print(f"Commit created: {repo.head.commit}")
         retry_operation(lambda: repo.remotes.origin.push(temp_branch_name, kill_after_timeout=3.0))
         print(f"Pushed changes to {temp_branch_name}")
         temp_branch_commit = repo.commit(temp_branch_name)
-        time.sleep(1)
         # create a new local tag from old tag, delete local tag and push new to
         # remote, delete old tag on origin
         repo.create_tag(new_tag_name, ref=temp_branch_commit)
@@ -121,7 +119,6 @@ def push_rename_tag(repo, tag_ref, file_to_add, temp_branch_name):
         #print(f"new tag {new_tag_name}")
         retry_operation(lambda: repo.remotes.origin.push(temp_branch_name, kill_after_timeout=3.0))
         print(f"Pushed new tag to {new_tag_name}")
-        time.sleep(1)
     except Exception as e:
         print(f"Error: {e}")
 
@@ -206,10 +203,10 @@ def patch_main():
     logging.basicConfig(level=logging.INFO)
     json_filename = 'final_cleaned.json'
 
-
-    # ENTER USERNAME AND PASSWORD
-    username = ""
-    password= ""
+    # include ssh key in environment
+    # assuming ssh key is copied to this location
+    git_ssh_identity_file = os.path.join(os.getcwd(), 'id_ed25519')
+    git_ssh_cmd = f'ssh -i {git_ssh_identity_file}'
 
     if not os.path.exists('./scantist-ossops'):
         os.makedirs('./scantist-ossops')
@@ -228,10 +225,10 @@ def patch_main():
         target_file = os.path.join(repo_path, relative_filepath)
 
         scantist_ossops_remote_path = fork.get_scantist_ossops_remote_path(repo_remote_path, username, password)
-        print(scantist_ossops_remote_path)
+        #print(scantist_ossops_remote_path)
         if not os.path.exists(repo_path) or not os.listdir(repo_path):
             try:
-                Repo.clone_from(scantist_ossops_remote_path, repo_path) # Need the url to clone
+                Repo.clone_from(scantist_ossops_remote_path, repo_path, env=dict(GIT_SSH_COMMAND=git_ssh_cmd)) # Need the url to clone
             except exc.GitCommandError as e:
                 print(f"Git command error: {e}")
         repo: Repo = Repo(repo_path)
@@ -254,7 +251,6 @@ def patch_main():
                         with open(target_file, 'w') as file:
                             file.writelines(patched_lines)
                         print("FILE IS WRITTEN")
-                        time.sleep(1)
                         push_rename_tag(repo, tag_ref, target_file, temp_branch_name)
                     else:
                         print("PATCH NOT APPLIED, no new tag")
@@ -262,7 +258,62 @@ def patch_main():
         print(f"Delete local file: scantist-ossops/{org_name}_{library_name}")
         folder_path = f'scantist-ossops/{org_name}_{library_name}'
         shutil.rmtree(folder_path)
-                
+
+
+def curl_patch_main():
+    logging.basicConfig(level=logging.INFO)
+    json_filename = 'final_cleaned.json'
+    search_code_path = os.getcwd()
+
+    if not os.path.exists('./scantist-ossops'):
+        os.makedirs('./scantist-ossops')
+    else:
+        pass
+
+    for repo_remote_path, relative_filepath, string_to_search, string_to_patch in parse_json_with_patch(json_filename):
+
+        org_name, library_name = get_org_library_names(repo_remote_path)
+
+        fork.fork_repo_to_org(org_name, library_name)
+
+        repo_name: str = f'scantist-ossops/{library_name}'
+        repo_path: str = os.path.join(os.getcwd(), repo_name)
+
+        target_file = os.path.join(repo_path, relative_filepath)
+
+        if not os.path.exists(repo_path) or not os.listdir(repo_path):
+            fork.clone_scantist_repo(library_name)
+        else:
+            print("repo is already cloned")
+            pass
+
+        tags_list = fork.get_all_tags(org_name, library_name)
+        for tag_ref in tags_list:
+            tag_ref_secure = f'{tag_ref}-secure'
+            if "-secure" in tag_ref or tag_ref_secure in tags_list:
+                print(f"TAG: {tag_ref} already has a secure tag, skipping") 
+                pass
+            else:
+                print(f"CHECKOUT: {tag_ref}")
+                fork.check_out_tag(repo_path, tag_ref)
+                if os.path.exists(target_file):
+                    print(f"FILE EXISTS: {target_file}")
+                    with open(target_file, 'r') as file:
+                        patched, patched_lines = search_and_patch(file, string_to_search, string_to_patch)
+                    # commit the changes, push to scantist repo, rename original tag
+                    if patched:
+                        # rewrite the file with patched line(s)
+                        with open(target_file, 'w') as file:
+                            file.writelines(patched_lines)
+                        print("FILE IS WRITTEN")
+                        fork.git_add_commit_push_create_tag(repo_path, target_file, tag_ref)
+                    else:
+                        print("patch NOT applied, no new tag")
+                        pass
+        print(f"Delete local file: scantist-ossops/{library_name}")
+        folder_path = f'scantist-ossops/{library_name}'
+        os.chdir(search_code_path)
+        shutil.rmtree(folder_path)
 
 if __name__ == '__main__':
-    patch_main()
+    curl_patch_main()
