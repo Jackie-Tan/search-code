@@ -130,6 +130,7 @@ def check_tag_exists(repo, tag_ref):
     except Exception as e:
         return False
 
+
 def main():
     result: dict = {}
     
@@ -314,6 +315,9 @@ def curl_patch_main():
         folder_path = f'scantist-ossops/{library_name}'
         os.chdir(search_code_path)
         shutil.rmtree(folder_path)
+    print("Getting secure tag counts")
+    secure_tag_counts = fork.get_secured_tag_counts()
+    print(f"Secure tag counts: {secure_tag_counts}")
 
 if __name__ == '__main__':
     curl_patch_main()

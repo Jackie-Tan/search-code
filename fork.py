@@ -182,3 +182,29 @@ def git_add_commit_push_create_tag(repo_path, target_file, tag_ref):
             git_push1 = git_push(tag_ref)
         git_create_tag1 = git_create_tag(tag_ref)
         git_push_tags1 = git_push_tags()
+
+def get_secured_tag_counts():
+    # only run after all patching is done to get a total count of tags with 
+    # -secure
+    secure_tag_count = 0
+    repo_names = get_org_repo()
+    for repo_name in repo_names:
+        tags_list = get_all_tags('scantist-ossops', repo_name)
+        for tag_name in tags_list:
+            if "-secure" in tag_name:
+                secure_tag_count += 1
+    return secure_tag_count
+
+def get_org_repo():
+    repo_names=[]
+    command = f"""curl -L \
+        -X GET \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer {TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        https://api.github.com/orgs/scantist-ossops/repos
+        """ 
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    repo_data = json.loads(result.stdout)
+    repo_names.extend(repo['name'] for repo in repo_data)
+    return repo_names
