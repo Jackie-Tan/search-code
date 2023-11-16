@@ -7,7 +7,7 @@ import json
 import os
 
 # CHANGE TOKEN ACCORDING TO USER
-TOKEN = "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"
+TOKEN = ""
 
 def fork_repo_to_org(org_name, library_name):
     command = f"""curl -L \
