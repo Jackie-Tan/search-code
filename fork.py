@@ -5,9 +5,17 @@ import subprocess
 import time
 import json
 import os
+import logging
+
+# Initialize the logger in fork.py
+logger = logging.getLogger('main')  # Get the logger instance from main.py
+
+def set_logger(main_logger):
+    global logger
+    logger = main_logger
 
 # CHANGE TOKEN ACCORDING TO USER
-TOKEN = ""
+TOKEN = "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"
 
 def fork_repo_to_org(org_name, library_name):
     command = f"""curl -L \
@@ -19,14 +27,20 @@ def fork_repo_to_org(org_name, library_name):
         -d '{{"organization":"scantist-ossops"}}'
         """
     if check_repo_exists(library_name):
-        print("Repository already exists, skip fork")
-        return
+        logger.info(f"Repository: https://api.github.com/repos/{org_name}/{library_name}/forks already exists, skip fork")
+        return True
     else:
-        subprocess.run(command, shell=True, stdout=subprocess.PIPE)
-        print(f"Forked: {org_name}/{library_name}")
-    time.sleep(3)
-    return
-
+        try:
+            subprocess.run(command, shell=True, stdout=subprocess.PIPE)
+            logger.info(f"Forked: {org_name}/{library_name}")
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.info(f"Error forking repository: {e}")
+            return False
+        except Exception as e:
+            logger.info(f"An unexpected error occured: {e}")
+            return False
+    
 def get_scantist_ossops_remote_path(repo_remote_path, username='', password=''):
     # given: https://github.com/Cacti/cacti.git
     # output: https://github.com/scantist-ossops/cacti.git
@@ -49,7 +63,7 @@ def check_repo_exists(library_name):
         response = result.stdout.strip()
         response_dict = json.loads(response)
     else:
-        print(f"Error: {result.stderr.strip()}")
+        logger.info(f"Error: {result.stderr.strip()}")
 
     try:
         response_dict["message"] == "Not Found"
@@ -58,6 +72,8 @@ def check_repo_exists(library_name):
         return True
     
 def get_all_tags(org_name, library_name):
+    # all the tags should be gotten from scantist-ossops when the fork is fresh
+    # in local
     tag_names = []
     command = f"""curl -I -s \
         -H "Accept: application/vnd.github+json" \
@@ -121,6 +137,16 @@ def check_out_tag(repo_path, tag_ref):
         """
         git_checkout = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
 
+def checkout_branch(repo_path, tag_ref):
+    branch_name = f'{tag_ref}-branch-secure'
+    os.chdir(repo_path)
+    command = f""" git checkout {branch_name}
+        """
+    git_checkout = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+    if git_checkout.stdout:
+        logger.info(f"Command: {command} output: {git_checkout.stdout}")
+    return
+    
 def git_push(tag_ref):
     temp_branch_name = f'{tag_ref}-branch-secure'
     command = f""" git push --set-upstream origin {temp_branch_name}
@@ -161,6 +187,7 @@ def git_push_tags():
     return git_push_tags1.stdout   
 
 def git_add_commit_push_create_tag(repo_path, target_file, tag_ref):
+    print(os.getcwd())
     if os.getcwd() == repo_path:
         git_add1 = git_add(target_file)
         git_commit1 = git_commit()
@@ -182,6 +209,7 @@ def git_add_commit_push_create_tag(repo_path, target_file, tag_ref):
             git_push1 = git_push(tag_ref)
         git_create_tag1 = git_create_tag(tag_ref)
         git_push_tags1 = git_push_tags()
+    return
 
 def get_secured_tag_counts():
     # only run after all patching is done to get a total count of tags with 
@@ -208,3 +236,69 @@ def get_org_repo():
     repo_data = json.loads(result.stdout)
     repo_names.extend(repo['name'] for repo in repo_data)
     return repo_names
+
+def parse_patchhunk_json(json_filename):
+    with open(json_filename, 'r') as json_file:
+        data = json.load(json_file)
+        for key, value in data.items():
+            cve_id = key
+            for dict1 in value:
+                git_url_list = dict1['git_url']
+                relative_filepath = dict1['affected_file']
+                vuln_unicode = dict1['vuln_unicode']
+                patched_unicode = dict1['patched_unicode']
+                yield (git_url_list, relative_filepath, vuln_unicode, patched_unicode)
+
+def get_org_library_name(git_url):
+    split_path = git_url.split('/')
+    org_name = split_path[-2]
+    library_name = split_path[-1].replace('.git','')
+    return (org_name, library_name)
+
+def update_forked_repo(repo_path, git_url):
+    # In your local clone of your forked repository, you can add the original 
+    # GitHub repository as a "remote". ("Remotes" are like nicknames for the 
+    # URLs of repositories - origin is one, for example.) Then you can fetch 
+    # all the branches from that upstream repository, and rebase your work to 
+    # continue working on the upstream version.
+
+    # move to correct directory for the git command to work
+    os.chdir(repo_path)
+    try:
+        command = f""" git remote add upstream {git_url}
+            """
+        git_cmd1 = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+        if git_cmd1.stdout:
+            logger.info(f"Command: {command} output: {git_cmd1.stdout}")
+    except:
+        logger.info("upstream already exists")
+
+    command = f""" git fetch upstream
+        """
+    git_cmd2 = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+    if git_cmd2.stdout:
+        logger.info(f"Command: {command} output: {git_cmd2.stdout}")
+    try:
+        command = f""" git checkout master
+            """
+        git_cmd3 = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+    except:
+        command = f""" git checkout main
+            """
+        git_cmd3 = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+    if git_cmd3.stdout:
+        logger.info(f"Command: {command} output: {git_cmd3.stdout}")
+
+    try:
+        command = f""" git rebase upstream/master
+            """
+        git_cmd4 = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+        if git_cmd4.stdout:
+            logger.info(f"Command: {command} output: {git_cmd4.stdout}")
+    except:
+        command = f""" git rebase upstream/main
+            """
+        git_cmd4 = subprocess.run(command, shell=True, check=True, text=True, capture_output=True)
+        if git_cmd4.stdout:
+            logger.info(f"Command: {command} output: {git_cmd4.stdout}")
+    return

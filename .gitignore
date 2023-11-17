@@ -1,4 +1,5 @@
 /venv/*
 /result/*
 /scantist-ossops/*
+/json/*
 id_ed25519

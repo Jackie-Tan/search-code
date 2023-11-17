@@ -1,0 +1,70 @@
+2023-11-17 19:26:11,896 - INFO - logger start
+2023-11-17 19:26:11,896 - INFO - logger start
+2023-11-17 19:26:13,055 - INFO - Repository: https://api.github.com/repos/ceph/ceph/forks already exists, skip fork
+2023-11-17 19:26:13,055 - INFO - Repository: https://api.github.com/repos/ceph/ceph/forks already exists, skip fork
+2023-11-17 19:26:13,056 - INFO - repo is already cloned
+2023-11-17 19:26:13,056 - INFO - repo is already cloned
+2023-11-17 19:26:21,215 - INFO - v18.2.1 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:21,215 - INFO - v18.2.1 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:21,215 - INFO - checkout tag and create secure: v18.2.1-secure
+2023-11-17 19:26:21,215 - INFO - checkout tag and create secure: v18.2.1-secure
+2023-11-17 19:26:26,633 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:26:26,633 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:26:35,080 - INFO - v18.2.0 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:35,080 - INFO - v18.2.0 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:35,080 - INFO - checkout tag and create secure: v18.2.0-secure
+2023-11-17 19:26:35,080 - INFO - checkout tag and create secure: v18.2.0-secure
+2023-11-17 19:26:39,983 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:26:39,983 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:26:47,956 - INFO - v18.1.3 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:47,956 - INFO - v18.1.3 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:47,956 - INFO - checkout tag and create secure: v18.1.3-secure
+2023-11-17 19:26:47,956 - INFO - checkout tag and create secure: v18.1.3-secure
+2023-11-17 19:26:52,346 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:26:52,346 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:26:59,828 - INFO - v18.1.2 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:59,828 - INFO - v18.1.2 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:26:59,828 - INFO - checkout tag and create secure: v18.1.2-secure
+2023-11-17 19:26:59,828 - INFO - checkout tag and create secure: v18.1.2-secure
+2023-11-17 19:27:04,286 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:27:04,286 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:27:12,719 - INFO - v18.1.1 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:12,719 - INFO - v18.1.1 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:12,720 - INFO - checkout tag and create secure: v18.1.1-secure
+2023-11-17 19:27:12,720 - INFO - checkout tag and create secure: v18.1.1-secure
+2023-11-17 19:27:32,918 - INFO - logger start
+2023-11-17 19:27:32,918 - INFO - logger start
+2023-11-17 19:27:33,933 - INFO - Repository: https://api.github.com/repos/ceph/ceph/forks already exists, skip fork
+2023-11-17 19:27:33,933 - INFO - Repository: https://api.github.com/repos/ceph/ceph/forks already exists, skip fork
+2023-11-17 19:27:33,933 - INFO - repo is already cloned
+2023-11-17 19:27:33,933 - INFO - repo is already cloned
+2023-11-17 19:27:42,732 - INFO - v18.2.1 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:42,732 - INFO - v18.2.1 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:42,733 - INFO - checkout tag and create secure: v18.2.1-secure-secure
+2023-11-17 19:27:42,733 - INFO - checkout tag and create secure: v18.2.1-secure-secure
+2023-11-17 19:27:47,400 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:27:47,400 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:27:55,903 - INFO - v18.2.1-secure already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:55,903 - INFO - v18.2.1-secure already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:55,903 - INFO - v18.2.0 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:55,903 - INFO - v18.2.0 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:27:55,904 - INFO - checkout tag and create secure: v18.2.0-secure-secure
+2023-11-17 19:27:55,904 - INFO - checkout tag and create secure: v18.2.0-secure-secure
+2023-11-17 19:28:00,714 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:28:00,714 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:28:09,868 - INFO - v18.2.0-secure already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:09,868 - INFO - v18.2.0-secure already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:09,869 - INFO - v18.1.3 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:09,869 - INFO - v18.1.3 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:09,869 - INFO - checkout tag and create secure: v18.1.3-secure-secure
+2023-11-17 19:28:09,869 - INFO - checkout tag and create secure: v18.1.3-secure-secure
+2023-11-17 19:28:15,076 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:28:15,076 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:28:22,923 - INFO - v18.1.3-secure already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:22,923 - INFO - v18.1.3-secure already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:22,923 - INFO - v18.1.2 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:22,923 - INFO - v18.1.2 already has a secure tag, skip this and checkout the secure tag
+2023-11-17 19:28:22,923 - INFO - checkout tag and create secure: v18.1.2-secure-secure
+2023-11-17 19:28:22,923 - INFO - checkout tag and create secure: v18.1.2-secure-secure
+2023-11-17 19:28:27,440 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc
+2023-11-17 19:28:27,440 - INFO - file exists: /home/scantist_jl/projects/search-code/scantist-ossops/ceph/src/mon/MonCap.cc

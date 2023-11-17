@@ -6,9 +6,8 @@ import json
 import ast
 import fork
 import time
+import glob
 import warnings
-
-logging.basicConfig(level=logging.INFO)
 
 def search_string(file, string_to_search):
     count = 0
@@ -32,7 +31,6 @@ def search_and_patch(file, string_to_search, string_to_patch):
         else:
             patched_lines.append(line)
     return (patched, patched_lines)
-
 
 def get_org_library_names(repo_remote_path: str) -> tuple[str, str]:
     split_path = repo_remote_path.split('/')
@@ -130,6 +128,84 @@ def check_tag_exists(repo, tag_ref):
     except Exception as e:
         return False
 
+def search_chunk_patching(full_path, vuln_unicode, patched_unicode):
+    # takes in file, read as raw, finds the raw chunk of vuln_unicode, replace
+    # whole chunk with patched_unicode
+
+    with open(full_path, 'rb') as file:
+        raw_data = file.read()
+
+    vuln_bytes = vuln_unicode.encode('utf-8')
+    patched_bytes = patched_unicode.encode('utf-8')
+
+    vuln_index = raw_data.find(vuln_bytes)
+
+    if vuln_index != 1:
+        # replace
+        patched_data = raw_data[:vuln_index] + patched_bytes + raw_data[vuln_index + len(vuln_bytes):]
+        patched = True
+    else:
+        patched = False
+    return patched, patched_data
+
+def process_each_tag(tags_list, repo_path, vuln_unicode, patched_unicode, target_file):
+    logger = logging.getLogger('main')
+    for tag_ref in tags_list:
+        tag_ref_secure = f'{tag_ref}-secure'
+        if tag_ref_secure in tags_list:
+            logger.info(f"{tag_ref} already has a secure tag, skip this and checkout the secure tag")
+            pass
+        elif tag_ref == tag_ref_secure:
+            logger.info(f"{tag_ref} this is the secure tag to update")
+            # since tag is already created, branch was created with
+            # the tag, so only check out the branch
+            fork.checkout_branch(tag_ref, repo_path)
+            file_search_chunk_patching(target_file, vuln_unicode, patched_unicode)
+        else:
+            print("checkout and create secure")
+            logger.info(f"checkout tag and create secure: {tag_ref}")
+            fork.check_out_tag(repo_path, tag_ref)
+            file_search_chunk_patching(repo_path, target_file, vuln_unicode, patched_unicode, tag_ref)
+            
+def file_search_chunk_patching(repo_path, target_file, vuln_unicode, patched_unicode, tag_ref):
+    logger = logging.getLogger('main')
+    print("file searching")
+    full_path = repo_path + target_file
+    print(full_path)
+    print(tag_ref)
+    print(vuln_unicode)
+    if os.path.exists(full_path):
+        logger.info(f"file exists: {full_path}")
+        print("file found")
+        patched, patched_data = search_chunk_patching(full_path, vuln_unicode, patched_unicode)
+        # commit the changes, push to scantist repo, rename original tag
+        if patched:
+            with open(full_path, 'wb') as file:
+                file.write(patched_data)
+            print("FILE WRITTEN")
+            fork.git_add_commit_push_create_tag(repo_path, full_path, tag_ref)
+        else:
+            print("patch NOT applied, no new tag")
+            pass
+
+def start_log():
+    # Check if the logger is already configured
+    if not logging.getLogger().hasHandlers():
+        logging.basicConfig(filename='git_org_repo.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logger = logging.getLogger('main')
+        # Pass the logger to fork.py
+        fork.set_logger(logger)
+
+        file_handler = logging.FileHandler('git_org_repo.log')
+        file_handler.setLevel(logging.INFO)
+
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+def get_json_files(search_code_path):
+    json_files = glob.glob(f"{search_code_path}/json/*.json")
+    return json_files
 
 def main():
     result: dict = {}
@@ -262,7 +338,6 @@ def patch_main():
 
 
 def curl_patch_main():
-    logging.basicConfig(level=logging.INFO)
     json_filename = 'final_cleaned.json'
     search_code_path = os.getcwd()
 
@@ -319,5 +394,54 @@ def curl_patch_main():
     secure_tag_counts = fork.get_secured_tag_counts()
     print(f"Secure tag counts: {secure_tag_counts}")
 
+
+def chunk_patch_curl_main():
+    logger = logging.getLogger('main')
+    logger.info('logger start')
+
+    search_code_path = os.getcwd()
+
+    json_files = get_json_files(search_code_path)
+
+    if not os.path.exists('./scantist-ossops'):
+        os.makedirs('./scantist-ossops')
+    else:
+        pass
+    for json_file in json_files:
+        for git_url_list, relative_filepath, vuln_unicode, patched_unicode in fork.parse_patchhunk_json(json_file):
+            for git_url in git_url_list:
+                org_name, library_name = fork.get_org_library_name(git_url)
+                repo_exist = fork.fork_repo_to_org(org_name, library_name)
+                if repo_exist:
+                    repo_name: str = f'scantist-ossops/{library_name}'
+                    repo_path: str = os.path.join(os.getcwd(), repo_name)
+
+                    target_file = os.path.join(repo_path, relative_filepath)
+
+                    if not os.path.exists(repo_path) or not os.listdir(repo_path):
+                        fork.clone_scantist_repo(library_name)
+                    else:
+                        print("no clone")
+                        logger.info("repo is already cloned")
+                        # fork.update_forked_repo(repo_path, git_url)
+
+                    tags_list = fork.get_all_tags(org_name, library_name)
+                    process_each_tag(tags_list, repo_path, vuln_unicode, patched_unicode, target_file)
+
+                    print(f"Delete local file: scantist-ossops/{library_name}")
+                    folder_path = f'scantist-ossops/{library_name}'
+                    os.chdir(search_code_path)
+                    shutil.rmtree(folder_path)
+                else:
+                    continue
+                print("Getting secure tag counts")
+                secure_tag_counts = fork.get_secured_tag_counts()
+                logger.info(f"Secure tag counts: {secure_tag_counts}")
+                print(f"Secure tag counts: {secure_tag_counts}")
+
+
+
+
 if __name__ == '__main__':
-    curl_patch_main()
+    start_log()
+    chunk_patch_curl_main()
