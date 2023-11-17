@@ -140,11 +140,14 @@ def search_chunk_patching(full_path, vuln_unicode, patched_unicode):
 
     vuln_index = raw_data.find(vuln_bytes)
 
-    if vuln_index != 1:
+    if vuln_index != -1:
         # replace
+        print("match found!")
         patched_data = raw_data[:vuln_index] + patched_bytes + raw_data[vuln_index + len(vuln_bytes):]
         patched = True
     else:
+        print("match not found")
+        patched_data=[]
         patched = False
     return patched, patched_data
 

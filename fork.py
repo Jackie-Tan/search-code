@@ -15,7 +15,7 @@ def set_logger(main_logger):
     logger = main_logger
 
 # CHANGE TOKEN ACCORDING TO USER
-TOKEN = "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"
+TOKEN = ""
 
 def fork_repo_to_org(org_name, library_name):
     command = f"""curl -L \

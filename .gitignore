@@ -2,4 +2,5 @@
 /result/*
 /scantist-ossops/*
 /json/*
+*.log
 id_ed25519
