@@ -1,6 +1,7 @@
 from git import Repo, exc
 import logging
 import os
+import sys
 import shutil
 import json
 import ast
@@ -8,6 +9,32 @@ import fork
 import time
 import glob
 import warnings
+
+def start_log():
+    logger = logging.getLogger('main')
+
+    # Configure root logger with basicConfig if no handlers are present
+    if not logging.getLogger().hasHandlers():
+        logging.basicConfig(filename='git_org_repo.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        
+    # Check if the 'main' logger already has handlers
+    if not logger.hasHandlers():
+        # Create and set up the file handler
+        file_handler = logging.FileHandler('git_org_repo.log')
+        file_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+
+        # Add the handler to the 'main' logger
+        logger.addHandler(file_handler)
+
+    # Disable propagation to the root logger
+    logger.propagate = False
+    
+    # Pass the logger to fork.py
+    fork.set_logger(logger)
+
+    logging.info('logger start')
 
 def search_string(file, string_to_search):
     count = 0
@@ -191,24 +218,15 @@ def file_search_chunk_patching(repo_path, target_file, vuln_unicode, patched_uni
             print("patch NOT applied, no new tag")
             pass
 
-def start_log():
-    # Check if the logger is already configured
-    if not logging.getLogger().hasHandlers():
-        logging.basicConfig(filename='git_org_repo.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-        logger = logging.getLogger('main')
-        # Pass the logger to fork.py
-        fork.set_logger(logger)
+def get_json_files(search_code_path: str) -> list[str]:
+    json_dir = os.path.join(search_code_path, "json")
 
-        file_handler = logging.FileHandler('git_org_repo.log')
-        file_handler.setLevel(logging.INFO)
+    # Check if the json directory exists
+    if not os.path.isdir(json_dir):
+        logging.error(f"JSON directory does not exist: {json_dir}")
+        sys.exit(1)
 
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-def get_json_files(search_code_path):
-    json_files = glob.glob(f"{search_code_path}/json/*.json")
-    return json_files
+    return glob.glob(f"{json_dir}/*.json")
 
 def main():
     result: dict = {}
@@ -218,7 +236,7 @@ def main():
     # repo_remote_path = 'https://github.com/Cacti/cacti.git'
     # repo_remote_path = 'https://github.com/josdejong/jsoneditor.git'
     # repo_remote_path = 'https://github.com/nolimits4web/swiper.git'
-    repo_remote_path = 'https://github.com/NodeRedis/node-redis.git'
+    repo_remote_path = 'https://github.com/moment/luxon.git'
 
     # json filename
     json_filename = 'final_cleaned.json'
@@ -400,7 +418,6 @@ def curl_patch_main():
 
 def chunk_patch_curl_main():
     logger = logging.getLogger('main')
-    logger.info('logger start')
 
     search_code_path = os.getcwd()
 
@@ -408,8 +425,7 @@ def chunk_patch_curl_main():
 
     if not os.path.exists('./scantist-ossops'):
         os.makedirs('./scantist-ossops')
-    else:
-        pass
+
     for json_file in json_files:
         for git_url_list, relative_filepath, vuln_unicode, patched_unicode in fork.parse_patchhunk_json(json_file):
             for git_url in git_url_list:
