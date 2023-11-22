@@ -4,3 +4,4 @@
 /json/*
 *.log
 id_ed25519
+.venv/
