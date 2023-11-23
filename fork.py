@@ -240,8 +240,7 @@ def get_org_repo():
 def parse_patchhunk_json(json_filename):
     with open(json_filename, 'r') as json_file:
         data = json.load(json_file)
-        for key, value in data.items():
-            cve_id = key
+        for cve_id, value in data.items():
             for dict1 in value:
                 git_url_list = dict1['git_url']
                 relative_filepath = dict1['affected_file']
@@ -249,7 +248,26 @@ def parse_patchhunk_json(json_filename):
                 patched_unicode = dict1['patched_unicode']
                 yield (git_url_list, relative_filepath, vuln_unicode, patched_unicode)
 
-def get_org_library_name(git_url):
+def get_org_library_name(git_url: str) -> tuple:
+    """
+    Extract and return the organization's and library's name from a Git remote URL.
+
+    The function splits the URL by '/' and extracts the last two segments as the organization and library names. 
+    It assumes the URL is in the standard format: 'https://github.com/<organization>/<library>.git' or a similar format.
+
+    Parameters:
+    git_url (str): A string representing the Git remote URL. Expected to be a valid URL in the standard Git format.
+
+    Returns:
+    tuple: A tuple where the first element is the organization's name (str) and the second element is the library's name (str).
+    
+    Example:
+    >>> get_org_library_name('https://github.com/exampleOrg/exampleRepo.git')
+    ('exampleOrg', 'exampleRepo')
+
+    Note:
+    The function does not validate the URL format and may produce incorrect results or errors if the URL is non-standard.
+    """
     split_path = git_url.split('/')
     org_name = split_path[-2]
     library_name = split_path[-1].replace('.git','')
