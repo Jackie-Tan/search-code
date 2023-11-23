@@ -4,10 +4,6 @@ def setup_global_logger() -> None:
     global logger
     logger = logging.getLogger('main')
     logger.setLevel(logging.INFO)
-
-    # Configure root logger with basicConfig if no handlers are present
-    # if not logging.getLogger().hasHandlers():
-    #     logging.basicConfig(filename='git_org_repo.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         
     # Check if the 'main' logger already has handlers
     if not logger.hasHandlers():

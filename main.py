@@ -4,16 +4,37 @@ import sys
 import shutil
 import json
 import ast
-import fork
 import time
 import glob
 import warnings
 
-import config_loader
 import logger_config
+logger_config.setup_global_logger()
+import config_loader
+config_loader.load_config()
+import fork
 
+def search_string(file, string_to_search) -> int:
+    """
+    Search for a specific string in a file and count its occurrences.
 
-def search_string(file, string_to_search):
+    This function iterates through each line of the given file. If the specified
+    string to search ('string_to_search') is found in a line, the function prints
+    a message indicating an exact match and increments a counter. The function
+    returns the total number of times the string was found in the file.
+
+    Args:
+    file: A file object or an iterable of strings representing the lines of a file.
+          The file should already be opened before passing to this function.
+    string_to_search: A string that the function will search for in the file.
+
+    Returns:
+    int: The number of times 'string_to_search' is found in the file.
+
+    Note:
+    This function prints a message to the console each time an exact match is found.
+    It does not modify the file and requires the file to be opened in advance.
+    """
     count = 0
     for line in file:
         if string_to_search in line:
@@ -441,6 +462,5 @@ def chunk_patch_curl_main():
                 print(f"Secure tag counts: {secure_tag_counts}")
 
 if __name__ == '__main__':
-    logger_config.setup_global_logger()
-    config_loader.load_config()
-    chunk_patch_curl_main()
+    # chunk_patch_curl_main()
+    fork.fork_repo_to_org("mantisbt","mantisbt")

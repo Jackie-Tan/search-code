@@ -2,46 +2,50 @@
 # access tokens/ Tokens(classic) and use that after Bearer.
 
 import subprocess
-import time
 import json
 import os
-import logging
+import sys
+
 
 import config_loader
+import logger_config
 
-# Initialize the logger in fork.py
-logger = logging.getLogger('main')  # Get the logger instance from main.py
+# # Initialize the logger in fork.py
+# logger = logging.getLogger('main')  # Get the logger instance from main.py
 
-def set_logger(main_logger):
-    global logger
-    logger = main_logger
+# def set_logger(main_logger):
+#     global logger
+#     logger = main_logger
 
 # CHANGE TOKEN ACCORDING TO USER
-TOKEN = config_loader.config['github_token']
+config = config_loader.get_config()
+TOKEN = config['github_token']
+logger = logger_config.get_global_logger()
 
-def fork_repo_to_org(org_name, library_name):
-    command = f"""curl -L \
-        -X POST \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer {TOKEN}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        https://api.github.com/repos/{org_name}/{library_name}/forks \
-        -d '{{"organization":"scantist-ossops"}}'
-        """
+def fork_repo_to_org(org_name: str, library_name: str) -> bool:
     if check_repo_exists(library_name):
         logger.info(f"Repository: https://api.github.com/repos/{org_name}/{library_name}/forks already exists, skip fork")
         return True
-    else:
-        try:
-            subprocess.run(command, shell=True, stdout=subprocess.PIPE)
-            logger.info(f"Forked: {org_name}/{library_name}")
-            return True
-        except subprocess.CalledProcessError as e:
-            logger.info(f"Error forking repository: {e}")
-            return False
-        except Exception as e:
-            logger.info(f"An unexpected error occured: {e}")
-            return False
+    
+    command = [
+        "curl", "-L",
+        "-X", "POST",
+        "-H", "Accept: application/vnd.github+json",
+        "-H", f"Authorization: Bearer {TOKEN}",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+        f"https://api.github.com/repos/{org_name}/{library_name}/forks",
+        "-d", '{"organization":"scantist-ossops"}'
+    ]
+    try:
+        subprocess.run(command, stdout=subprocess.PIPE, check=True)
+        logger.info(f"Forked: {org_name}/{library_name}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error forking repository: {e}")
+    except Exception as e:
+        logger.error(f"An unexpected error occured: {e}")
+
+    sys.exit(1)
     
 def get_scantist_ossops_remote_path(repo_remote_path, username='', password=''):
     # given: https://github.com/Cacti/cacti.git
@@ -52,26 +56,27 @@ def get_scantist_ossops_remote_path(repo_remote_path, username='', password=''):
     scantist_ossops_remote_path = '/'.join(split_path)
     return scantist_ossops_remote_path
 
-def check_repo_exists(library_name):
-    command = f"""curl -L \
-        -X GET \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer {TOKEN}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        https://api.github.com/repos/scantist-ossops/{library_name}
-        """ 
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    if result.returncode == 0:
-        response = result.stdout.strip()
-        response_dict = json.loads(response)
-    else:
-        logger.info(f"Error: {result.stderr.strip()}")
+def check_repo_exists(library_name: str) -> bool:
+    command = [
+        "curl", "-L",
+        "-X", "GET",
+        "-H", "Accept: application/vnd.github+json",
+        "-H", f"Authorization: Bearer {TOKEN}",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+        f"https://api.github.com/repos/scantist-ossops/{library_name}"
+    ]
 
     try:
-        response_dict["message"] == "Not Found"
-        return False
-    except:
-        return True
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        response_dict = json.loads(result.stdout.strip())
+        return not response_dict.get("message") == "Not Found"
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error executing command: {e}")
+    except json.JSONDecodeError as e:
+        logger.error(f"Error decoding JSON: {e}")
+
+    sys.exit(1)
+
     
 def get_all_tags(org_name, library_name):
     # all the tags should be gotten from scantist-ossops when the fork is fresh
