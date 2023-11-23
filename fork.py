@@ -7,6 +7,8 @@ import json
 import os
 import logging
 
+import config_loader
+
 # Initialize the logger in fork.py
 logger = logging.getLogger('main')  # Get the logger instance from main.py
 
@@ -15,7 +17,7 @@ def set_logger(main_logger):
     logger = main_logger
 
 # CHANGE TOKEN ACCORDING TO USER
-TOKEN = ""
+TOKEN = config_loader.config['github_token']
 
 def fork_repo_to_org(org_name, library_name):
     command = f"""curl -L \

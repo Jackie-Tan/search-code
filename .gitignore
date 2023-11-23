@@ -5,3 +5,4 @@
 *.log
 id_ed25519
 .venv/
+config.json

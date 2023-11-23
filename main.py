@@ -1,5 +1,4 @@
 from git import Repo, exc
-import logging
 import os
 import sys
 import shutil
@@ -10,31 +9,9 @@ import time
 import glob
 import warnings
 
-def start_log():
-    logger = logging.getLogger('main')
+import config_loader
+import logger_config
 
-    # Configure root logger with basicConfig if no handlers are present
-    if not logging.getLogger().hasHandlers():
-        logging.basicConfig(filename='git_org_repo.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-        
-    # Check if the 'main' logger already has handlers
-    if not logger.hasHandlers():
-        # Create and set up the file handler
-        file_handler = logging.FileHandler('git_org_repo.log')
-        file_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-
-        # Add the handler to the 'main' logger
-        logger.addHandler(file_handler)
-
-    # Disable propagation to the root logger
-    logger.propagate = False
-    
-    # Pass the logger to fork.py
-    fork.set_logger(logger)
-
-    logging.info('logger start')
 
 def search_string(file, string_to_search):
     count = 0
@@ -104,6 +81,7 @@ def parse_json_with_patch(json_path: str) -> tuple[str, str, str]:
             yield (repo_remote_path, relative_filepath, string_to_search, string_to_patch)
 
 def retry_operation(operation, max_retries=3, delay=3):
+    logger = logger_config.get_global_logger()
     retries=0
     while retries < max_retries:
         try:
@@ -111,14 +89,14 @@ def retry_operation(operation, max_retries=3, delay=3):
             operation()
             return
         except Exception as e:
-            logging.error(f"Error: {e}")
+            logger.error(f"Error: {e}")
             retries+=1
-            logging.info(f"Retrying ({retries}/{max_retries}) after a short delay...")
+            logger.info(f"Retrying ({retries}/{max_retries}) after a short delay...")
             time.sleep(delay)
         except warnings.Warning as w:
-            logging.warning(f"Warning: {w}")
+            logger.warning(f"Warning: {w}")
             retries+=1
-            logging.info(f"Retrying ({retries}/{max_retries}) after a short delay...")
+            logger.info(f"Retrying ({retries}/{max_retries}) after a short delay...")
             time.sleep(delay)
 
 def push_rename_tag(repo, tag_ref, file_to_add, temp_branch_name):
@@ -179,7 +157,7 @@ def search_chunk_patching(full_path, vuln_unicode, patched_unicode):
     return patched, patched_data
 
 def process_each_tag(tags_list, repo_path, vuln_unicode, patched_unicode, target_file):
-    logger = logging.getLogger('main')
+    logger = logger_config.get_global_logger()
     for tag_ref in tags_list:
         tag_ref_secure = f'{tag_ref}-secure'
         if tag_ref_secure in tags_list:
@@ -198,7 +176,7 @@ def process_each_tag(tags_list, repo_path, vuln_unicode, patched_unicode, target
             file_search_chunk_patching(repo_path, target_file, vuln_unicode, patched_unicode, tag_ref)
             
 def file_search_chunk_patching(repo_path, target_file, vuln_unicode, patched_unicode, tag_ref):
-    logger = logging.getLogger('main')
+    logger = logger_config.get_global_logger()
     print("file searching")
     full_path = repo_path + target_file
     print(full_path)
@@ -219,11 +197,12 @@ def file_search_chunk_patching(repo_path, target_file, vuln_unicode, patched_uni
             pass
 
 def get_json_files(search_code_path: str) -> list[str]:
+    logger = logger_config.get_global_logger()
     json_dir = os.path.join(search_code_path, "json")
 
     # Check if the json directory exists
     if not os.path.isdir(json_dir):
-        logging.error(f"JSON directory does not exist: {json_dir}")
+        logger.error(f"JSON directory does not exist: {json_dir}")
         sys.exit(1)
 
     return glob.glob(f"{json_dir}/*.json")
@@ -298,7 +277,7 @@ def main():
 
 
 def patch_main():
-    logging.basicConfig(level=logging.INFO)
+    logger = logger_config.get_global_logger()
     json_filename = 'final_cleaned.json'
 
     # include ssh key in environment
@@ -334,7 +313,6 @@ def patch_main():
         for tag_ref in repo.tags:
             if check_tag_exists(repo, tag_ref):
                 print(f"TAG: {tag_ref.name} already has a secure tag, skipping") 
-                pass
             else:
                 repo.git.checkout(tag_ref.name)
                 print(f"CHECKOUT: {tag_ref.name}")
@@ -352,7 +330,6 @@ def patch_main():
                         push_rename_tag(repo, tag_ref, target_file, temp_branch_name)
                     else:
                         print("PATCH NOT APPLIED, no new tag")
-                        pass
         print(f"Delete local file: scantist-ossops/{org_name}_{library_name}")
         folder_path = f'scantist-ossops/{org_name}_{library_name}'
         shutil.rmtree(folder_path)
@@ -417,7 +394,7 @@ def curl_patch_main():
 
 
 def chunk_patch_curl_main():
-    logger = logging.getLogger('main')
+    logger = logger_config.get_global_logger()
 
     search_code_path = os.getcwd()
 
@@ -425,6 +402,11 @@ def chunk_patch_curl_main():
 
     if not os.path.exists('./scantist-ossops'):
         os.makedirs('./scantist-ossops')
+
+    # patch_hunks: list[tuple['str', 'str', 'str', 'str']] = []
+    # for json_file in json_files:
+    #     patch_hunks.append(fork.parse_patchhunk_json(json_file))
+    # for patch_hunk in patch_hunks:
 
     for json_file in json_files:
         for git_url_list, relative_filepath, vuln_unicode, patched_unicode in fork.parse_patchhunk_json(json_file):
@@ -458,9 +440,7 @@ def chunk_patch_curl_main():
                 logger.info(f"Secure tag counts: {secure_tag_counts}")
                 print(f"Secure tag counts: {secure_tag_counts}")
 
-
-
-
 if __name__ == '__main__':
-    start_log()
+    logger_config.setup_global_logger()
+    config_loader.load_config()
     chunk_patch_curl_main()
