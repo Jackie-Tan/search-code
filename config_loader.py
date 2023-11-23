@@ -9,7 +9,7 @@ def load_config() -> dict:
     try:
         global global_config
         with open('config.json', 'r') as file:
-            global_config: dict = json.load(file)
+            global_config = json.load(file)
         return global_config
     except FileNotFoundError:
         logger.error("config.json file not found")
