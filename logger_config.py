@@ -1,5 +1,7 @@
 import logging
 
+logger = None
+
 def setup_global_logger() -> None:
     global logger
     logger = logging.getLogger('main')
@@ -19,4 +21,7 @@ def setup_global_logger() -> None:
     logger.propagate = False
 
 def get_global_logger() -> logging.Logger:
+    global logger
+    if logger is None:
+        setup_global_logger()
     return logger
