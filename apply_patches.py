@@ -4,9 +4,10 @@ import subprocess
 import shutil
 import ast
 import sys
+import time
 
 import requests
-from git import Repo, exc
+from git import Repo, exc, Git
 
 import config_loader
 
@@ -63,6 +64,11 @@ def get_org_library_name(url: str) -> tuple[str, str]:
 
 def clone_to_local_repo(repo_base_url: str) -> Repo:
     org_name, library_name = get_org_library_name(repo_base_url)
+    
+    # the file id_ed25519 is the ssh file that your command line environment
+    # uses to authenticate ssh git clone
+    git_ssh_identity_file = os.path.join(os.getcwd(), 'id_ed25519')
+    git_ssh_cmd = f'ssh -i {git_ssh_identity_file}'
 
     if not os.path.exists('./repo'):
         os.makedirs('./repo')
@@ -71,8 +77,9 @@ def clone_to_local_repo(repo_base_url: str) -> Repo:
     
     if not os.path.exists(repo_path) or not os.listdir(repo_path):
         try:
-            print(f"Cloning {repo_base_url} to local. This process will take a while.")
-            repo = Repo.clone_from(repo_base_url, repo_path)
+            git_ssh_clone_url = f'git@github.com:scantist-ossops/{library_name}.git'
+            print(f"Cloning {git_ssh_clone_url} to local. This process will take a while.")
+            repo = Repo.clone_from(git_ssh_clone_url, repo_path, env=dict(GIT_SSH_COMMAND=git_ssh_cmd))
         except exc.GitCommandError as e:
             print(f"Git command error occurs at clone process: {e}")
             return None
@@ -101,7 +108,7 @@ def stash_changes(repo: Repo):
     if repo.is_dirty():
         repo.git.stash('save', 'Automated stash by GitPython')
 
-def apply_patches_to_repo(repo: Repo, patches: list) -> dict:
+def apply_patches_to_repo(repo: Repo, patches: list):
     global patched_counter
     tags = get_git_tags(repo)
     commit_tags = {}
@@ -141,7 +148,6 @@ def apply_patches_to_repo(repo: Repo, patches: list) -> dict:
 
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
-    return commit_tags
 
 def apply_one_patch(repo: Repo, patch_content):
     try:
@@ -180,6 +186,7 @@ def fork_repo_remote(repo_base_url):
     try:
         subprocess.run(command, stdout=subprocess.PIPE, check=True)
         print(f"Forked: {org_name}/{library_name} to scantist-ossops/{library_name}")
+        time.sleep(1)
         return f"http://github.com/scantist-ossops/{library_name}"
     except subprocess.CalledProcessError as e:
         print(f"Error forking repository: {e}")
@@ -205,7 +212,7 @@ def main():
         patches = []
         for url in repo_patch_urls:
             patches.append(download_patch(url))
-        commit_tags = apply_patches_to_repo(repo, patches)
+        apply_patches_to_repo(repo, patches)
         # Once the patches are done, delete the local repo
         # delete_local_repo(repo)
 

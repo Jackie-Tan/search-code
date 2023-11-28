@@ -301,11 +301,6 @@ def patch_main():
     logger = logger_config.get_global_logger()
     json_filename = 'final_cleaned.json'
 
-    # include ssh key in environment
-    # assuming ssh key is copied to this location
-    git_ssh_identity_file = os.path.join(os.getcwd(), 'id_ed25519')
-    git_ssh_cmd = f'ssh -i {git_ssh_identity_file}'
-
     if not os.path.exists('./scantist-ossops'):
         os.makedirs('./scantist-ossops')
     else:
