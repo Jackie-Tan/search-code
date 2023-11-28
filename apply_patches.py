@@ -55,6 +55,7 @@ def read_csv_to_variable(file_path: str, start_row: int = 0, end_row: int = 100)
     return data
 
 def get_org_library_name(url: str) -> tuple[str, str]:
+    # sample: http://github.com/Illydth/wowraidmanager
     split_path = url.split('/')
     org_name = split_path[-2]
     library_name = split_path[-1].replace('.git','')
@@ -100,16 +101,18 @@ def stash_changes(repo: Repo):
     if repo.is_dirty():
         repo.git.stash('save', 'Automated stash by GitPython')
 
-def apply_patches_to_repo(repo: Repo, patches: list):
+def apply_patches_to_repo(repo: Repo, patches: list) -> dict:
     global patched_counter
     tags = get_git_tags(repo)
+    commit_tags = {}
     for tag in tags:
         try:
+            new_branch_name = f'{tag}-branch-secure'
             # Stash any uncommitted changes
-            stash_changes(repo)
+            # stash_changes(repo)
             
             # Checkout the tag
-            repo.git.checkout(tag)
+            repo.git.checkout(tag, b=new_branch_name)
 
             # As long as there is a patch, it is considered a success
             is_patched = False
@@ -121,16 +124,24 @@ def apply_patches_to_repo(repo: Repo, patches: list):
             if not is_patched:
                 continue
 
+            # add all file changes
+            repo.git.add('--all')
+
             commit_message = f"Applied patches to tag {tag}"
             new_commit = repo.index.commit(commit_message)
 
             new_tag_name = f"{tag}-secure"
             repo.create_tag(new_tag_name, ref=new_commit)
             patched_counter += 1
+            commit_tags[new_commit] = new_tag_name
             print(f"Patch applied and committed successfully to tag {tag}. Tagged the commit as {new_tag_name}.")
+
+            repo.remotes.origin.push(new_branch_name, tags=True)
+            print(f"Pushed to remote repo successfully.")
 
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
+    return commit_tags
 
 def apply_one_patch(repo: Repo, patch_content):
     try:
@@ -150,29 +161,53 @@ def parse_literal_to_list(string):
     except ValueError:
         return []
     
+def fork_repo_remote(repo_base_url):
+    # fork from given url to scantist-ossops
+    # return a url pointing to scantist-ossops
+    org_name, library_name = get_org_library_name(repo_base_url)
+    command = [
+        "curl", "-L",
+        "-X", "POST",
+        "-H", "Accept: application/vnd.github+json",
+        "-H", f"Authorization: Bearer {token}",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+        f"https://api.github.com/repos/{org_name}/{library_name}/forks",
+        "-d", '{"organization":"scantist-ossops"}'
+    ]
+    if check_repo_exists(library_name):
+        print(f"Repository: https://api.github.com/repos/{org_name}/{library_name}/forks already exists, skip fork")
+        return f"http://github.com/scantist-ossops/{library_name}"
+    try:
+        subprocess.run(command, stdout=subprocess.PIPE, check=True)
+        print(f"Forked: {org_name}/{library_name} to scantist-ossops/{library_name}")
+        return f"http://github.com/scantist-ossops/{library_name}"
+    except subprocess.CalledProcessError as e:
+        print(f"Error forking repository: {e}")
+    except Exception as e:
+        print(f"An unexpected error occured: {e}")
+    sys.exit(1)
+
+
 def main():
-    print(check_repo_exists('abc'))
-    return
     global patched_counter
     # Path to your CSV file
     csv_file_path = 'final_data_v3.csv'
 
     # Read the CSV data into a Python variable
-    csv_data: list = read_csv_to_variable(csv_file_path, start_row=0, end_row=10)
+    csv_data: list = read_csv_to_variable(csv_file_path, start_row=2, end_row=3)
     
     for repo_patch_dict in csv_data:
-        # TODO: fork_repo_remote(): fork in remote, change repo_base_url to scantist_ossops_base_url, change clone_to_local_repo argument to scantist_ossops_base_url
-        repo = clone_to_local_repo(repo_patch_dict['repo_base_url'])
+        scantist_ossops_base_url = fork_repo_remote(repo_patch_dict['repo_base_url'])
+        repo = clone_to_local_repo(scantist_ossops_base_url)
         if not repo:
             continue
         repo_patch_urls = parse_literal_to_list(repo_patch_dict['repo_patch_urls'])
         patches = []
         for url in repo_patch_urls:
             patches.append(download_patch(url))
-        apply_patches_to_repo(repo, patches)
-        # TODO: push_local_to_remote(repo): push local repo to remote repo
+        commit_tags = apply_patches_to_repo(repo, patches)
         # Once the patches are done, delete the local repo
-        delete_local_repo(repo)
+        # delete_local_repo(repo)
 
     print(f'Total versions patched: {patched_counter}')
 
