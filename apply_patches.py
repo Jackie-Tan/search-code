@@ -66,7 +66,6 @@ def clone_to_local_repo(repo_base_url: str) -> Repo:
     if not os.path.exists('./repo'):
         os.makedirs('./repo')
 
-    # repo_name: str = f'repo/{org_name}_{library_name}'
     repo_path: str = os.path.join(os.getcwd(), 'repo', f'{org_name}_{library_name}')
     
     if not os.path.exists(repo_path) or not os.listdir(repo_path):
@@ -84,7 +83,7 @@ def clone_to_local_repo(repo_base_url: str) -> Repo:
 def delete_local_repo(repo: Repo):
     shutil.rmtree(repo.working_dir)
 
-def download_patch(url: str):
+def download_patch(url: str) -> str:
     try:
         with requests.get(url) as r:
             r.raise_for_status()
@@ -140,7 +139,6 @@ def apply_one_patch(repo: Repo, patch_content):
         stdout, stderr = proc.communicate(input=patch_content.encode())
         if proc.returncode == 0:
             return True
-            # print(f"Patch applied successfully to tag {tag}.")
     except Exception as e:
         print(f"Error applying a patch: {e}")
         
@@ -163,6 +161,7 @@ def main():
     csv_data: list = read_csv_to_variable(csv_file_path, start_row=0, end_row=10)
     
     for repo_patch_dict in csv_data:
+        # TODO: fork_repo_remote(): fork in remote, change repo_base_url to scantist_ossops_base_url, change clone_to_local_repo argument to scantist_ossops_base_url
         repo = clone_to_local_repo(repo_patch_dict['repo_base_url'])
         if not repo:
             continue
@@ -171,6 +170,7 @@ def main():
         for url in repo_patch_urls:
             patches.append(download_patch(url))
         apply_patches_to_repo(repo, patches)
+        # TODO: push_local_to_remote(repo): push local repo to remote repo
         # Once the patches are done, delete the local repo
         delete_local_repo(repo)
 
