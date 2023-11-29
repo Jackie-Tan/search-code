@@ -7,3 +7,4 @@ id_ed25519
 .venv/
 config.json
 repo/
+__pycache__/
