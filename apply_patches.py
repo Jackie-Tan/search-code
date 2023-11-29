@@ -6,6 +6,7 @@ import ast
 import sys
 import time
 from pathlib import Path
+import argparse
 
 import requests
 from git import Repo, exc, Git
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 import settings
 config = settings.get_config()
 token = config['github_token']
+private_key_path = config['private_key_path']
 
 # 1. Read CSV that has 2 columns: repo_patch_url, repo_base_url (done)
 # 2. Using the github_repo_url to clone the repo to local (done)
@@ -40,9 +42,9 @@ def check_repo_exists(library_name: str) -> bool:
     except requests.exceptions.HTTPError as e:
         if response.status_code == 404:
             return False
-        print(f"HTTP error: {e}")
+        logger.error(f"HTTP error: {e}")
     except requests.exceptions.RequestException as e:
-        print(f"Error making request: {e}")
+        logger.error(f"Error making request: {e}")
 
     sys.exit(1)
 
@@ -75,11 +77,13 @@ def clone_to_local_repo(repo_base_url: str) -> Repo:
             print(f"Cloning {git_ssh_clone_url} to local. This process will take a while.")
             repo = Repo.clone_from(git_ssh_clone_url, repo_path, env=dict(GIT_SSH_COMMAND=git_ssh_cmd))
         except exc.GitCommandError as e:
-            print(f"Git command error occurs at clone process: {e}")
+            logger.error(f"Git command error occurs at clone process: {e}")
             return None
 
     repo = Repo(repo_path)
-    print(f"Successfully cloned {repo_base_url} to local")
+    success_clone_statement: str = f'Successfully cloned {repo_base_url} to local'
+    logger.info(success_clone_statement)
+    print(success_clone_statement)
     return repo
 
 def delete_local_repo(repo: Repo):
@@ -89,10 +93,12 @@ def download_patch(url: str) -> str:
     try:
         with requests.get(url) as r:
             r.raise_for_status()
-            print(f"Successfully downloaded patch {url}")
+            success_download_statement: str = f'Successfully downloaded patch {url}'
+            logger.info(success_download_statement)
+            print(success_download_statement)
             return r.text
     except Exception as e:
-        print(f'Error downloading the patch: {e}')
+        logger.error(f'Error downloading the patch: {e}')
 
 def get_git_tags(repo: Repo) -> list:
     tags = [tag.name for tag in repo.tags]
@@ -102,47 +108,43 @@ def stash_changes(repo: Repo):
     if repo.is_dirty():
         repo.git.stash('save', 'Automated stash by GitPython')
 
-def apply_patches_to_repo(repo: Repo, patches: list):
+def apply_patches_to_repo(repo: Repo, patches: list) -> bool:
     global patched_counter
     tags = get_git_tags(repo)
-    commit_tags = {}
+    git_obj = Git(repo.working_dir)
+    is_repo_patched = False
     for tag in tags:
-        try:
-            new_branch_name = f'{tag}-branch-secure'
-            # Stash any uncommitted changes
-            # stash_changes(repo)
-            
+        try:      
             # Checkout the tag
-            repo.git.checkout(tag, b=new_branch_name)
+            git_obj.checkout(tag)
 
-            # As long as there is a patch, it is considered a success
-            is_patched = any(apply_one_patch(repo, patch) for patch in patches)
-            # is_patched = False
-            # for patch in patches:
-            #     if apply_one_patch(repo, patch):
-            #         is_patched = True
-
-            # Once the tag is patched, there will be a new commit and a new tag named "<original tag>-secure"
+            # As long as there is a patch applied to the tag, it is a success
+            is_patched = any(apply_one_patch(repo, patch) for patch in patches)            
             if not is_patched:
                 continue
 
-            # add all file changes
+            # Once the tag is patched,a new branch, a new commit and a new tag named "<original tag>-secure" will be created
+            new_branch_name = f'{tag}-branch-secure'
+            new_branch_ref = repo.create_head(new_branch_name)
+            new_branch_ref.checkout()
+            logger.info(f"Successfully created new branch {new_branch_name}")
+
             repo.git.add('--all')
 
-            commit_message = f"Applied patches to tag {tag}"
-            new_commit = repo.index.commit(commit_message)
+            new_commit = repo.index.commit(f"Applied patches to tag {tag}")
 
-            new_tag_name = f"{tag}-secure"
-            repo.create_tag(new_tag_name, ref=new_commit)
-            patched_counter += 1
-            commit_tags[new_commit] = new_tag_name
-            print(f"Patch applied and committed successfully to tag {tag}. Tagged the commit as {new_tag_name}.")
+            repo.create_tag(new_tag_name := f"{tag}-secure", ref=new_commit)
+            logger.info(f"Successfully applied patches to tag {tag}, committed and tagged as {new_tag_name}")
 
             repo.remotes.origin.push(new_branch_name, tags=True)
-            print(f"Pushed to remote repo successfully.")
+            logger.info(f"Successfully pushed to remote repo")
+            patched_counter += 1
+            is_repo_patched = True
 
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            logger.error(f"An unexpected error occurred: {e}")
+
+    return is_repo_patched
 
 def apply_one_patch(repo: Repo, patch_content):
     try:
@@ -152,7 +154,7 @@ def apply_one_patch(repo: Repo, patch_content):
         if proc.returncode == 0:
             return True
     except Exception as e:
-        print(f"Error applying a patch: {e}")
+        logger.error(f"Error applying a patch: {e}")
         
     return False
 
@@ -175,70 +177,78 @@ def fork_repo_remote(repo_base_url: str) -> str:
     data = {"organization": "scantist-ossops"}
 
     if check_repo_exists(library_name):
-        print(f"Repository: {api_url} already exists, skip fork")
-        return f"http://github.com/scantist-ossops/{library_name}"
+        logger.warning(f"Repository: {api_url} already exists, skip fork")
+        return None
+        # return f"http://github.com/scantist-ossops/{library_name}"
 
     try:
+        print(f'Forking {org_name}/{library_name} to scantist-ossops/{library_name}...')
         response = requests.post(api_url, headers=headers, json=data)
         response.raise_for_status()
-        print(f"Forked: {org_name}/{library_name} to scantist-ossops/{library_name}")
-        time.sleep(1)
+        logger.info(f"Successfully forked {org_name}/{library_name} to scantist-ossops/{library_name}")
+        time.sleep(1) # is it necessary to sleep for 1s here?
         return f"http://github.com/scantist-ossops/{library_name}"
+    
     except requests.HTTPError as e:
         logger.error(f"HTTP error occurred while forking repository: {e}")
+        return None
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
-
-    sys.exit(1)
-    # command = [
-    #     "curl", "-L",
-    #     "-X", "POST",
-    #     "-H", "Accept: application/vnd.github+json",
-    #     "-H", f"Authorization: Bearer {token}",
-    #     "-H", "X-GitHub-Api-Version: 2022-11-28",
-    #     f"https://api.github.com/repos/{org_name}/{library_name}/forks",
-    #     "-d", '{"organization":"scantist-ossops"}'
-    # ]
-    # if check_repo_exists(library_name):
-    #     print(f"Repository: https://api.github.com/repos/{org_name}/{library_name}/forks already exists, skip fork")
-    #     return f"http://github.com/scantist-ossops/{library_name}"
-    # try:
-    #     subprocess.run(command, stdout=subprocess.PIPE, check=True)
-    #     print(f"Forked: {org_name}/{library_name} to scantist-ossops/{library_name}")
-    #     time.sleep(1)
-    #     return f"http://github.com/scantist-ossops/{library_name}"
-    # except subprocess.CalledProcessError as e:
-    #     print(f"Error forking repository: {e}")
-    # except Exception as e:
-    #     print(f"An unexpected error occured: {e}")
-    # sys.exit(1)
+        sys.exit(1)
 
 def get_git_ssh_cmd():
-    # the file id_ed25519 is the ssh file that your command line environment
-    # uses to authenticate ssh git clone
-    private_key_path = config['private_key_path']
+    global private_key_path
     file_path = Path(private_key_path)
     git_ssh_identity_file = file_path.resolve()
     return f'ssh -i {git_ssh_identity_file}'
 
+def get_arguments():
+    parser = argparse.ArgumentParser(description='Apply Patches')
+    parser.add_argument('start_index', help='start index of the data')
+    parser.add_argument('end_index', help='end index of the data (not inclusive)')
+    return parser.parse_args()
 
-def main():
+def delete_github_repo(repo_base_url):
+    """
+    Delete a repository on GitHub.
+    
+    :param repo_base_url: Repository's remote base url (e.g. "https://github.com/<org_name>/<lib_name>")
+    """
+    org_name, library_name = get_org_library_name(repo_base_url)
+    api_url = f'https://api.github.com/repos/{org_name}/{library_name}'
+    headers = {"Authorization": f"token {token}"}
+
+    response = requests.delete(api_url, headers=headers)
+
+    if response.status_code == 204:
+        logger.info(f'Successfully deleted repository {org_name}/{library_name}')
+    else:
+        logger.error(f"Failed to delete repository {org_name}/{library_name}. Status code: {response.status_code}")
+        logger.error("Response:", response.json())
+
+def main(args: argparse.Namespace):
     global patched_counter
+    
     csv_file_path = 'final_data_v3.csv'
-    csv_data: list = read_csv_to_variable(csv_file_path, start_row=0, end_row=2)
+    csv_data: list = read_csv_to_variable(csv_file_path, start_row=int(args.start_index), end_row=int(args.end_index))
     
     for repo_patch_dict in csv_data:
-        scantist_ossops_base_url = fork_repo_remote(repo_patch_dict['repo_base_url'])
-        repo = clone_to_local_repo(scantist_ossops_base_url)
-        if not repo:
+        if (scantist_ossops_base_url := fork_repo_remote(repo_patch_dict['repo_base_url'])) is None:
+            continue
+        if (repo := clone_to_local_repo(scantist_ossops_base_url)) is None:
             continue
         repo_patch_urls = parse_literal_to_list(repo_patch_dict['repo_patch_urls'])
         patches = [download_patch(url) for url in repo_patch_urls]
-        apply_patches_to_repo(repo, patches)
+        if not apply_patches_to_repo(repo, patches):
+            print(f'No patches for repo {scantist_ossops_base_url}. Deleting the remote repo...')
+            delete_github_repo(scantist_ossops_base_url)
         # Once the patches are done, delete the local repo
         delete_local_repo(repo)
-
-    print(f'Total versions patched: {patched_counter}')
+    
+    total_version_statement: str = f"Total versions patched: {patched_counter}"
+    logger.info(total_version_statement)
+    print(total_version_statement)
 
 if __name__ == '__main__':
-    main()
+    args: argparse.Namespace = get_arguments()
+    main(args)
