@@ -113,6 +113,7 @@ def apply_patches_to_repo(repo: Repo, patches: list) -> bool:
     tags = get_git_tags(repo)
     git_obj = Git(repo.working_dir)
     is_repo_patched = False
+    patched_tags_counter = 0
     for tag in tags:
         try:      
             # Checkout the tag
@@ -124,26 +125,27 @@ def apply_patches_to_repo(repo: Repo, patches: list) -> bool:
                 continue
 
             # Once the tag is patched,a new branch, a new commit and a new tag named "<original tag>-secure" will be created
+            # and push to remote
             new_branch_name = f'{tag}-branch-secure'
             new_branch_ref = repo.create_head(new_branch_name)
             new_branch_ref.checkout()
-            logger.info(f"Successfully created new branch {new_branch_name}")
+            logger.debug(f"Successfully created new branch {new_branch_name}")
 
             repo.git.add('--all')
 
             new_commit = repo.index.commit(f"Applied patches to tag {tag}")
 
             repo.create_tag(new_tag_name := f"{tag}-secure", ref=new_commit)
-            logger.info(f"Successfully applied patches to tag {tag}, committed and tagged as {new_tag_name}")
 
             repo.remotes.origin.push(new_branch_name, tags=True)
-            logger.info(f"Successfully pushed to remote repo")
+            logger.info(f"Successfully created new branch {new_branch_name}, applied patches to tag {tag}, committed, tagged as {new_tag_name}, pushed to remote")
             patched_counter += 1
+            patched_tags_counter += 1
             is_repo_patched = True
 
         except Exception as e:
             logger.error(f"An unexpected error occurred: {e}")
-
+    logger.info(f'Total versions patched for {repo.remote("origin").url}: {patched_tags_counter}')
     return is_repo_patched
 
 def apply_one_patch(repo: Repo, patch_content):
