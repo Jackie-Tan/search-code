@@ -28,8 +28,7 @@ private_key_path = config['private_key_path']
 
 patched_counter = 0
 
-def check_repo_exists(library_name: str) -> bool:
-    url = f"https://api.github.com/repos/scantist-ossops/{library_name}"
+def check_repo_exists(url: str) -> bool:
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}"
@@ -44,9 +43,25 @@ def check_repo_exists(library_name: str) -> bool:
             return False
         logger.error(f"HTTP error: {e}")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error making request: {e}")
+        logger.error(f"Error checking repo existence: {e}")
 
     sys.exit(1)
+
+def check_fork_completion(url: str, max_attempts: int = 10, delay: int = 2):
+    """
+    Check if the fork is completed by polling the repository URL.
+    :param fork_url: URL of the forked repository.
+    :param max_attempts: Maximum number of attempts to check.
+    :param delay: Delay in seconds between attempts.
+    :return: True if fork is completed, False otherwise.
+    """
+    for _ in range(max_attempts):
+        if check_repo_exists(url):
+            return True
+        time.sleep(delay)
+    else:
+        logger.error(f'Incomplete fork for {url}')
+        return False
 
 def read_csv_to_variable(file_path: str, start_row: int = 0, end_row: int = 100):
     data = []
@@ -170,7 +185,7 @@ def fork_repo_remote(repo_base_url: str) -> str:
     # fork from given url to scantist-ossops
     # return a url pointing to scantist-ossops
     org_name, library_name = get_org_library_name(repo_base_url)
-    api_url = f"https://api.github.com/repos/{org_name}/{library_name}/forks"
+    repo_external_url = f"https://api.github.com/repos/{org_name}/{library_name}/forks"
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
@@ -178,18 +193,23 @@ def fork_repo_remote(repo_base_url: str) -> str:
     }
     data = {"organization": "scantist-ossops"}
 
-    if check_repo_exists(library_name):
-        logger.warning(f"Repository: {api_url} already exists, skip fork")
+    repo_internal_url = f"http://github.com/scantist-ossops/{library_name}"
+    # if check_repo_exists(library_name):
+    if check_repo_exists(repo_internal_url):
+        logger.warning(f"Repository: {repo_internal_url} already exists, skip fork")
         return None
-        # return f"http://github.com/scantist-ossops/{library_name}"
 
     try:
         print(f'Forking {org_name}/{library_name} to scantist-ossops/{library_name}...')
-        response = requests.post(api_url, headers=headers, json=data)
+        response = requests.post(repo_external_url, headers=headers, json=data)
         response.raise_for_status()
-        logger.info(f"Successfully forked {org_name}/{library_name} to scantist-ossops/{library_name}")
-        time.sleep(1) # is it necessary to sleep for 1s here?
-        return f"http://github.com/scantist-ossops/{library_name}"
+        
+        if check_fork_completion(repo_internal_url):
+            logger.info(f"Successfully forked {org_name}/{library_name} to scantist-ossops/{library_name}")
+            return repo_internal_url
+        else:
+            logger.error(f"Failed to forked {org_name}/{library_name}")
+            return None
     
     except requests.HTTPError as e:
         logger.error(f"HTTP error occurred while forking repository: {e}")
